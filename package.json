@@ -15,8 +15,7 @@
     "lucide-react": "^0.383.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.3.0",
-    "papaparse": "^5.4.1",
-    "@types/papaparse": "^5.3.14"
+    "@supabase/supabase-js": "^2.43.4"
   },
   "devDependencies": {
     "typescript": "^5",
