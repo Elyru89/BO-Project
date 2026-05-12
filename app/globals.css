@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bo-navy: #050b18;
+  --bo-surface: #0c1628;
+  --bo-card: #111f38;
+  --bo-border: #1e3354;
+  --bo-orange: #f97316;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--bo-navy);
+  color: #f1f5f9;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0c1628; }
+::-webkit-scrollbar-thumb { background: #1e3354; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2a4060; }
+
+/* Custom utilities */
+@layer components {
+  .bo-card {
+    @apply bg-bo-card border border-bo-border rounded-xl;
+  }
+  .bo-btn-primary {
+    @apply bg-bo-orange hover:bg-bo-orange-hover text-white font-semibold px-4 py-2 rounded-lg transition-colors;
+  }
+  .bo-btn-ghost {
+    @apply bg-transparent hover:bg-bo-surface text-bo-subtle hover:text-bo-text border border-bo-border px-4 py-2 rounded-lg transition-colors;
+  }
+  .bo-input {
+    @apply bg-bo-surface border border-bo-border text-bo-text placeholder-bo-subtle rounded-lg px-3 py-2 focus:outline-none focus:border-bo-orange transition-colors;
+  }
+  .bo-badge-success {
+    @apply bg-green-900/40 text-green-400 border border-green-800/50 text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+  .bo-badge-warning {
+    @apply bg-yellow-900/40 text-yellow-400 border border-yellow-800/50 text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+  .bo-badge-danger {
+    @apply bg-red-900/40 text-red-400 border border-red-800/50 text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+  .bo-badge-info {
+    @apply bg-sky-900/40 text-sky-400 border border-sky-800/50 text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+  .bo-badge-muted {
+    @apply bg-bo-muted/40 text-bo-subtle border border-bo-border text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+}
+
+/* Stat number animation */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stat-animate { animation: countUp 0.5s ease forwards; }
