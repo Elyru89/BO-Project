@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Table2, Film, Palette, Image,
-  Users, Megaphone, Anchor, ChevronRight, Menu, X
+  Users, Megaphone, BarChart2, ChevronRight, Menu, X
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/",                  label: "Dashboard",      icon: LayoutDashboard, tag: null },
+  { href: "/analytics",         label: "Analytics",      icon: BarChart2,       tag: null },
   { href: "/pdp-tracker",       label: "PDP Tracker",    icon: Table2,          tag: "10.5k SKUs" },
   { href: "/video-pipeline",    label: "Video Pipeline", icon: Film,            tag: null },
   { href: "/darwin-projects",   label: "Design Projects",icon: Palette,         tag: null },
@@ -26,13 +27,11 @@ export default function Sidebar() {
   const nav = (
     <nav className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-6 border-b border-bo-border">
-        <div className="w-8 h-8 bg-bo-orange rounded-lg flex items-center justify-center flex-shrink-0">
-          <Anchor size={16} className="text-white" />
-        </div>
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-bo-border">
+        <img src="/bo-icon-white.svg" alt="BO" className="w-8 h-8 flex-shrink-0" />
         <div>
-          <div className="text-white font-bold text-sm leading-tight">Boat Outfitters</div>
-          <div className="text-bo-subtle text-xs">Command Center</div>
+          <img src="/bo-logo-white.svg" alt="Boat Outfitters" className="h-5 w-auto" style={{filter:"brightness(1)"}}/>
+          <div className="text-bo-subtle text-[10px] mt-0.5 uppercase tracking-widest">Command Center</div>
         </div>
       </div>
 
@@ -67,29 +66,22 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-bo-border">
-        <div className="text-[11px] text-bo-muted text-center">
-          2026 Marketing Operations
-        </div>
+        <div className="text-[11px] text-bo-muted text-center">2026 Marketing Operations</div>
       </div>
     </nav>
   );
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 flex-shrink-0 flex-col bg-bo-surface border-r border-bo-border h-screen sticky top-0">
         {nav}
       </aside>
-
-      {/* Mobile toggle */}
       <button
         className="lg:hidden fixed top-4 left-4 z-50 bg-bo-card border border-bo-border rounded-lg p-2 text-bo-text"
         onClick={() => setOpen(!open)}
       >
         {open ? <X size={18} /> : <Menu size={18} />}
       </button>
-
-      {/* Mobile drawer */}
       {open && (
         <div className="lg:hidden fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
