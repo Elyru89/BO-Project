@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Film, Plus, Search, ExternalLink, Edit2, CheckCircle, Trash2, Youtube, Play } from "lucide-react";
+import { Film, Plus, Search, ExternalLink, Edit2, CheckCircle, Trash2, Play, Eye, ThumbsUp, BarChart2 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import Modal from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
@@ -16,7 +16,16 @@ type CompletedVideo = {
   id: string; description: string; video_url: string;
   paid_ads: boolean; website: boolean; organic: boolean;
   boosted: boolean; teak_isle: boolean; post_link: string;
+  date_posted: string; view_count: number; like_count: number;
+  metrics_updated_at: string;
 };
+
+function fmtNum(n: number) {
+  if (!n) return "—";
+  if (n >= 1_000_000) return `${(n/1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n/1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
 
 const BLANK_VP: Omit<VideoProject,"id"|"created_at"> = {
   task:"", description:"", assets:"", paid_ads:false, website:false,
@@ -53,9 +62,11 @@ export default function VideoPipeline() {
   const [search, setSearch]       = useState("");
   const [statusFilter, setStatus] = useState("all");
   const [channelFilter, setChannel] = useState("all");
-  const [modal, setModal]         = useState<"create"|"edit"|"detail"|null>(null);
+  const [modal, setModal]         = useState<"create"|"edit"|"detail"|"metrics"|null>(null);
   const [selected, setSelected]   = useState<VideoProject|null>(null);
+  const [selectedCV, setSelectedCV] = useState<CompletedVideo|null>(null);
   const [form, setForm]           = useState<typeof BLANK_VP>(BLANK_VP);
+  const [metricsForm, setMetricsForm] = useState({ view_count:0, like_count:0, date_posted:"" });
   const [saving, setSaving]       = useState(false);
 
   useEffect(() => { loadAll(); }, []);
@@ -96,6 +107,30 @@ export default function VideoPipeline() {
   async function del(id: string) {
     if (!confirm("Delete this project?")) return;
     await supabase.from("video_projects").delete().eq("id", id);
+    loadAll();
+  }
+
+  function openMetrics(cv: CompletedVideo) {
+    setSelectedCV(cv);
+    setMetricsForm({
+      view_count: cv.view_count ?? 0,
+      like_count: cv.like_count ?? 0,
+      date_posted: cv.date_posted?.slice(0,10) ?? "",
+    });
+    setModal("metrics");
+  }
+
+  async function saveMetrics() {
+    if (!selectedCV) return;
+    setSaving(true);
+    await supabase.from("completed_videos").update({
+      view_count: metricsForm.view_count || 0,
+      like_count: metricsForm.like_count || 0,
+      date_posted: metricsForm.date_posted || null,
+      metrics_updated_at: new Date().toISOString(),
+    }).eq("id", selectedCV.id);
+    setSaving(false);
+    setModal(null);
     loadAll();
   }
 
@@ -303,9 +338,29 @@ export default function VideoPipeline() {
                     {row.teak_isle && <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-900/20 text-yellow-400 border border-yellow-800/30 font-medium">Teak Isle</span>}
                   </div>
 
+                  {/* Metrics row */}
+                  {(row.view_count > 0 || row.like_count > 0) && (
+                    <div className="flex gap-3 mb-2">
+                      <span className="flex items-center gap-1 text-xs text-bo-subtle">
+                        <Eye size={10}/> {fmtNum(row.view_count)} views
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-bo-subtle">
+                        <ThumbsUp size={10}/> {fmtNum(row.like_count)} likes
+                      </span>
+                      {row.date_posted && (
+                        <span className="text-xs text-bo-muted">{new Date(row.date_posted).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-medium ${platform.color}`}>{platform.label}</span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
+                      <button onClick={()=>openMetrics(row)}
+                        className="text-xs text-bo-muted hover:text-bo-orange flex items-center gap-1 transition-colors"
+                        title="Update view/like counts">
+                        <BarChart2 size={11}/> {row.view_count > 0 ? "Edit" : "Add"} Metrics
+                      </button>
                       {hasSourceLink && (
                         <a href={row.video_url} target="_blank" rel="noopener noreferrer"
                           className="text-xs text-bo-subtle hover:text-bo-teal flex items-center gap-1">
@@ -390,6 +445,52 @@ export default function VideoPipeline() {
             <div className="flex gap-3 pt-2">
               <button onClick={save} disabled={!form.task||saving} className="bo-btn-primary flex-1 disabled:opacity-50">
                 {saving?"Saving…":modal==="create"?"Create Project":"Save Changes"}
+              </button>
+              <button onClick={()=>setModal(null)} className="bo-btn-ghost">Cancel</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Metrics modal (for published videos) ── */}
+      {modal==="metrics" && selectedCV && (
+        <Modal title="Update Post Metrics" onClose={()=>setModal(null)} size="sm">
+          <div className="space-y-4">
+            <div className="bg-bo-surface rounded-lg p-3">
+              <div className="text-bo-text text-sm font-medium line-clamp-2">{selectedCV.description || "—"}</div>
+              {selectedCV.post_link?.startsWith("http") && (
+                <a href={selectedCV.post_link} target="_blank" rel="noopener noreferrer"
+                  className="text-bo-teal text-xs flex items-center gap-1 mt-1 hover:underline">
+                  View post <ExternalLink size={10}/>
+                </a>
+              )}
+            </div>
+            <p className="text-bo-subtle text-xs">Enter the current numbers from the platform dashboard. YouTube is auto-fetched — this is for Facebook, TikTok, Instagram, etc.</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] text-bo-subtle uppercase tracking-wider block mb-1.5">View Count</label>
+                <input type="number" className="bo-input w-full" min={0}
+                  value={metricsForm.view_count || ""}
+                  onChange={e=>setMetricsForm(f=>({...f, view_count: parseInt(e.target.value)||0}))}
+                  placeholder="e.g. 14500"/>
+              </div>
+              <div>
+                <label className="text-[11px] text-bo-subtle uppercase tracking-wider block mb-1.5">Like Count</label>
+                <input type="number" className="bo-input w-full" min={0}
+                  value={metricsForm.like_count || ""}
+                  onChange={e=>setMetricsForm(f=>({...f, like_count: parseInt(e.target.value)||0}))}
+                  placeholder="e.g. 340"/>
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] text-bo-subtle uppercase tracking-wider block mb-1.5">Date Posted</label>
+              <input type="date" className="bo-input w-full"
+                value={metricsForm.date_posted}
+                onChange={e=>setMetricsForm(f=>({...f, date_posted: e.target.value}))}/>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={saveMetrics} disabled={saving} className="bo-btn-primary flex-1 disabled:opacity-50">
+                {saving ? "Saving…" : "Save Metrics"}
               </button>
               <button onClick={()=>setModal(null)} className="bo-btn-ghost">Cancel</button>
             </div>

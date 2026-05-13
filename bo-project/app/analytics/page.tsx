@@ -74,6 +74,7 @@ export default function Analytics() {
   const [published, setPublished] = useState<{
     description: string; post_link: string; paid_ads: boolean; organic: boolean;
     boosted: boolean; website: boolean; teak_isle: boolean;
+    view_count: number; like_count: number; date_posted: string;
   }[]>([]);
   const [ytProjectLinks, setYtProjectLinks] = useState<string[]>([]);
   const [darwinByMonth, setDarwinByMonth] = useState<number[]>(Array(12).fill(0));
@@ -111,7 +112,7 @@ export default function Analytics() {
       supabase.from("brand_banners").select("*",{count:"exact",head:true}),
       supabase.from("brand_banners").select("*",{count:"exact",head:true}).eq("banner_completed",true),
       supabase.from("influencer_posts").select("*",{count:"exact",head:true}),
-      supabase.from("completed_videos").select("description,post_link,paid_ads,organic,boosted,website,teak_isle"),
+      supabase.from("completed_videos").select("description,post_link,paid_ads,organic,boosted,website,teak_isle,view_count,like_count,date_posted"),
       supabase.from("darwin_projects").select("updated_at,progress"),
       supabase.from("video_projects").select("updated_at,progress,finished_video_link"),
     ]);
@@ -246,6 +247,16 @@ export default function Analytics() {
     if (!socialByPlatform[p]) socialByPlatform[p] = [];
     socialByPlatform[p].push(r);
   }
+
+  // Manual metrics totals (non-YouTube platforms only)
+  const manualTotalViews = uniquePublished
+    .filter(r => detectPlatform(r.post_link) !== "YouTube")
+    .reduce((s,r) => s + (r.view_count ?? 0), 0);
+  const manualTotalLikes = uniquePublished
+    .filter(r => detectPlatform(r.post_link) !== "YouTube")
+    .reduce((s,r) => s + (r.like_count ?? 0), 0);
+  const manualTrackedCount = uniquePublished
+    .filter(r => detectPlatform(r.post_link) !== "YouTube" && (r.view_count ?? 0) > 0).length;
 
   // Monthly chart max
   const maxDarwin = Math.max(...darwinByMonth, 1);
@@ -698,9 +709,20 @@ BO Command Center · bopmtool.netlify.app`;
                     <span className="font-semibold text-bo-text text-sm">{platform}</span>
                     <span className="text-bo-subtle text-xs">({posts.length} posts)</span>
                   </div>
-                  {posts.length > 0 && platform !== "Other" && (
-                    <span className="text-[10px] text-bo-muted italic">Live metrics require API token — see below</span>
-                  )}
+                  {posts.length > 0 && (() => {
+                    const pViews = posts.reduce((s,r)=>s+(r.view_count??0),0);
+                    const pLikes = posts.reduce((s,r)=>s+(r.like_count??0),0);
+                    return pViews > 0 ? (
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="text-bo-text font-semibold flex items-center gap-1">
+                          <Eye size={11} className="text-bo-subtle"/> {fmtViews(String(pViews))} views
+                        </span>
+                        {pLikes > 0 && <span className="text-bo-subtle flex items-center gap-1"><ThumbsUp size={10}/> {fmtViews(String(pLikes))}</span>}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-bo-muted italic">Add metrics via Video Pipeline → Published</span>
+                    );
+                  })()}
                 </div>
 
                 {posts.length === 0 ? (
@@ -723,12 +745,22 @@ BO Command Center · bopmtool.netlify.app`;
                               {r.teak_isle && <span className="text-[10px] text-yellow-400">Teak Isle</span>}
                             </div>
                           </div>
-                          {r.post_link?.startsWith("http") && (
-                            <a href={r.post_link} target="_blank" rel="noopener noreferrer"
-                              className={`flex items-center gap-1 text-xs ${meta.textColor} hover:underline flex-shrink-0`}>
-                              View Post <ExternalLink size={10}/>
-                            </a>
-                          )}
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            {(r.view_count ?? 0) > 0 && (
+                              <span className="text-xs text-bo-subtle flex items-center gap-1">
+                                <Eye size={10}/> {fmtViews(String(r.view_count))}
+                              </span>
+                            )}
+                            {r.date_posted && (
+                              <span className="text-xs text-bo-muted">{new Date(r.date_posted).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
+                            )}
+                            {r.post_link?.startsWith("http") && (
+                              <a href={r.post_link} target="_blank" rel="noopener noreferrer"
+                                className={`flex items-center gap-1 text-xs ${meta.textColor} hover:underline`}>
+                                View Post <ExternalLink size={10}/>
+                              </a>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

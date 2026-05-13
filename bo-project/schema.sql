@@ -48,6 +48,10 @@ create table if not exists completed_videos (
   boosted boolean default false,
   teak_isle boolean default false,
   post_link text,
+  date_posted date,
+  view_count integer default 0,
+  like_count integer default 0,
+  metrics_updated_at timestamptz,
   created_at timestamptz default now()
 );
 
