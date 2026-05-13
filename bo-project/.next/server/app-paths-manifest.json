@@ -1,0 +1,12 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/darwin-projects/page": "app/darwin-projects/page.js",
+  "/analytics/page": "app/analytics/page.js",
+  "/influencer-hub/page": "app/influencer-hub/page.js",
+  "/video-ads/page": "app/video-ads/page.js",
+  "/brand-banners/page": "app/brand-banners/page.js",
+  "/api/youtube/route": "app/api/youtube/route.js",
+  "/pdp-tracker/page": "app/pdp-tracker/page.js",
+  "/video-pipeline/page": "app/video-pipeline/page.js",
+  "/page": "app/page.js"
+}

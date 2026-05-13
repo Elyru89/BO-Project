@@ -184,9 +184,17 @@ export default function Analytics() {
   }, [published, ytProjectLinks, fetchYouTubeStats]);
 
   // ── Computed ─────────────────────────────────────────────────────────
+  // Deduplicate published rows by URL so the same post isn't counted twice
+  const seenUrls = new Set<string>();
+  const uniquePublished = published.filter(r => {
+    if (!r.post_link || seenUrls.has(r.post_link)) return false;
+    seenUrls.add(r.post_link);
+    return true;
+  });
+
   const platformCounts: Record<string, number> = {};
   const channelCounts = { paid_ads: 0, organic: 0, website: 0, boosted: 0, teak_isle: 0 };
-  for (const r of published) {
+  for (const r of uniquePublished) {
     const p = detectPlatform(r.post_link);
     platformCounts[p] = (platformCounts[p] ?? 0) + 1;
     if (r.paid_ads) channelCounts.paid_ads++;
@@ -195,17 +203,42 @@ export default function Analytics() {
     if (r.boosted)  channelCounts.boosted++;
     if (r.teak_isle) channelCounts.teak_isle++;
   }
-  const platformTotal = published.length || 1;
+  const platformTotal = uniquePublished.length || 1;
   const topPlatform = Object.entries(platformCounts).sort((a,b)=>b[1]-a[1])[0];
 
-  // YouTube videos sorted by views
-  const ytVideos = published
-    .filter(r => r.post_link && ytStats[r.post_link])
-    .map(r => ({ ...r, stat: ytStats[r.post_link] }))
-    .sort((a,b) => parseInt(b.stat.viewCount,10) - parseInt(a.stat.viewCount,10));
+  // YouTube videos — deduplicated across completed_videos AND video_projects
+  type YtEntry = {
+    url: string; description: string; stat: YTStat;
+    paid_ads: boolean; organic: boolean; boosted: boolean; website: boolean; teak_isle: boolean;
+  };
+  const seenYt = new Map<string, YtEntry>();
+  for (const r of published) {
+    const u = r.post_link ?? "";
+    if ((u.includes("youtube") || u.includes("youtu.be")) && ytStats[u] && !seenYt.has(u)) {
+      seenYt.set(u, { url: u, description: r.description, stat: ytStats[u],
+        paid_ads: r.paid_ads, organic: r.organic, boosted: r.boosted,
+        website: r.website, teak_isle: r.teak_isle });
+    }
+  }
+  for (const url of ytProjectLinks) {
+    if (ytStats[url] && !seenYt.has(url)) {
+      seenYt.set(url, { url, description: ytStats[url].title, stat: ytStats[url],
+        paid_ads: false, organic: false, boosted: false, website: false, teak_isle: false });
+    }
+  }
+  const ytVideos = [...seenYt.values()].sort((a,b) => parseInt(b.stat.viewCount,10) - parseInt(a.stat.viewCount,10));
 
   const totalViews = ytVideos.reduce((s,v) => s + parseInt(v.stat.viewCount,10), 0);
   const totalLikes = ytVideos.reduce((s,v) => s + parseInt(v.stat.likeCount,10), 0);
+
+  // Social posts grouped by platform (excluding YouTube which has its own section)
+  const socialByPlatform: Record<string, typeof uniquePublished> = {};
+  for (const r of uniquePublished) {
+    const p = detectPlatform(r.post_link);
+    if (p === "YouTube") continue; // handled separately
+    if (!socialByPlatform[p]) socialByPlatform[p] = [];
+    socialByPlatform[p].push(r);
+  }
 
   // Monthly chart max
   const maxDarwin = Math.max(...darwinByMonth, 1);
@@ -536,7 +569,7 @@ export default function Analytics() {
                           <ThumbsUp size={10}/> {fmtViews(v.stat.likeCount)}
                         </div>
                       </div>
-                      <a href={v.post_link} target="_blank" rel="noopener noreferrer"
+                      <a href={v.url} target="_blank" rel="noopener noreferrer"
                         className="text-bo-teal hover:text-bo-orange transition-colors">
                         <ExternalLink size={14}/>
                       </a>
@@ -547,6 +580,84 @@ export default function Analytics() {
             </div>
           </>
         )}
+      </section>
+
+      {/* ── Social Platform Posts ── */}
+      <section>
+        <h2 className="text-xs font-semibold text-bo-subtle uppercase tracking-widest mb-4">Social Platform Posts</h2>
+
+        {Object.keys(socialByPlatform).length === 0 && (
+          <div className="bo-card p-6 text-center text-bo-subtle text-sm">No non-YouTube social posts found in published videos.</div>
+        )}
+
+        <div className="space-y-4">
+          {(["Facebook","Instagram","TikTok","Other"] as const).map(platform => {
+            const posts = socialByPlatform[platform] ?? [];
+            const platformMeta: Record<string, { color: string; textColor: string; apiNote: string }> = {
+              Facebook:  { color:"bg-blue-600",  textColor:"text-blue-400",  apiNote:"Facebook Graph API — requires a Page Access Token from Meta Business Suite → Settings → Advanced → Page Access Tokens." },
+              Instagram: { color:"bg-pink-600",  textColor:"text-pink-400",  apiNote:"Instagram Graph API — requires an Instagram Business account connected to Facebook Business Suite and a Page Access Token." },
+              TikTok:    { color:"bg-cyan-500",  textColor:"text-cyan-400",  apiNote:"TikTok Research API — requires TikTok Business account approval and a developer app." },
+              Other:     { color:"bg-bo-muted",  textColor:"text-bo-subtle", apiNote:"" },
+            };
+            const meta = platformMeta[platform];
+            if (posts.length === 0 && platform === "Other") return null;
+            return (
+              <div key={platform} className="bo-card overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-bo-border">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${meta.color}`}/>
+                    <span className="font-semibold text-bo-text text-sm">{platform}</span>
+                    <span className="text-bo-subtle text-xs">({posts.length} posts)</span>
+                  </div>
+                  {posts.length > 0 && platform !== "Other" && (
+                    <span className="text-[10px] text-bo-muted italic">Live metrics require API token — see below</span>
+                  )}
+                </div>
+
+                {posts.length === 0 ? (
+                  <div className="px-5 py-4">
+                    <p className="text-bo-subtle text-xs mb-2">No posts tracked yet.</p>
+                    {meta.apiNote && <p className="text-bo-muted text-[11px] leading-relaxed">{meta.apiNote}</p>}
+                  </div>
+                ) : (
+                  <>
+                    <div className="divide-y divide-bo-border/40 max-h-64 overflow-y-auto">
+                      {posts.map((r, i) => (
+                        <div key={i} className="flex items-center gap-3 px-5 py-2.5 hover:bg-bo-surface/30 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-bo-text line-clamp-1">{r.description || "—"}</div>
+                            <div className="flex gap-2 mt-0.5">
+                              {r.paid_ads  && <span className="text-[10px] text-bo-orange">Paid Ad</span>}
+                              {r.organic   && <span className="text-[10px] text-green-400">Organic</span>}
+                              {r.boosted   && <span className="text-[10px] text-purple-400">Boosted</span>}
+                              {r.website   && <span className="text-[10px] text-bo-teal">Website</span>}
+                              {r.teak_isle && <span className="text-[10px] text-yellow-400">Teak Isle</span>}
+                            </div>
+                          </div>
+                          {r.post_link?.startsWith("http") && (
+                            <a href={r.post_link} target="_blank" rel="noopener noreferrer"
+                              className={`flex items-center gap-1 text-xs ${meta.textColor} hover:underline flex-shrink-0`}>
+                              View Post <ExternalLink size={10}/>
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {meta.apiNote && (
+                      <div className="px-5 py-3 border-t border-bo-border bg-bo-surface/50">
+                        <p className="text-[11px] text-bo-muted leading-relaxed">
+                          <span className="text-bo-subtle font-medium">To pull live engagement metrics: </span>
+                          {meta.apiNote}
+                          {" "}Add the token as <code className="bg-bo-muted/50 px-1 py-0.5 rounded text-bo-orange">{platform.toUpperCase()}_ACCESS_TOKEN</code> in Netlify environment variables and redeploy.
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {/* ── Monthly Completion Timeline ── */}
