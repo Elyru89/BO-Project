@@ -72,11 +72,20 @@ export default function VideoPipeline() {
   }
 
   async function save() {
+    if (!form.task.trim()) return;
     setSaving(true);
-    const payload = { ...form, updated_at: new Date().toISOString() };
-    if (modal === "create") await supabase.from("video_projects").insert(payload);
-    else if (modal === "edit" && selected) await supabase.from("video_projects").update(payload).eq("id", selected.id);
-    setSaving(false); setModal(null); loadAll();
+    const payload = {
+      ...form,
+      due_date: form.due_date || null,
+      ad_launch_date: form.ad_launch_date || null,
+      updated_at: new Date().toISOString(),
+    };
+    let error;
+    if (modal === "create") ({ error } = await supabase.from("video_projects").insert(payload));
+    else if (modal === "edit" && selected) ({ error } = await supabase.from("video_projects").update(payload).eq("id", selected.id));
+    setSaving(false);
+    if (error) { alert("Save failed: " + error.message); return; }
+    setModal(null); loadAll();
   }
 
   async function markComplete(id: string) {

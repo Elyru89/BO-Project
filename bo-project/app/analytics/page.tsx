@@ -74,6 +74,7 @@ export default function Analytics() {
     description: string; post_link: string; paid_ads: boolean; organic: boolean;
     boosted: boolean; website: boolean; teak_isle: boolean;
   }[]>([]);
+  const [ytProjectLinks, setYtProjectLinks] = useState<string[]>([]);
   const [darwinByMonth, setDarwinByMonth] = useState<number[]>(Array(12).fill(0));
   const [videosByMonth, setVideosByMonth] = useState<number[]>(Array(12).fill(0));
 
@@ -109,7 +110,7 @@ export default function Analytics() {
       supabase.from("influencer_posts").select("*",{count:"exact",head:true}),
       supabase.from("completed_videos").select("description,post_link,paid_ads,organic,boosted,website,teak_isle"),
       supabase.from("darwin_projects").select("updated_at,progress"),
-      supabase.from("video_projects").select("updated_at,progress"),
+      supabase.from("video_projects").select("updated_at,progress,finished_video_link"),
     ]);
 
     setPdpTotal(pt ?? 0); setPdpDone(pd ?? 0);
@@ -118,6 +119,12 @@ export default function Analytics() {
     setBannersTotal(bt ?? 0); setBannersDone(bd ?? 0);
     setInfluencers(inf ?? 0);
     setPublished(pub ?? []);
+
+    // Collect YouTube links from video_projects.finished_video_link too
+    const vpYtLinks = (videos ?? [])
+      .map((r: { finished_video_link?: string }) => r.finished_video_link ?? "")
+      .filter((u: string) => u.includes("youtube") || u.includes("youtu.be"));
+    setYtProjectLinks(vpYtLinks);
 
     // Monthly completions from updated_at
     const dm = Array(12).fill(0);
@@ -143,31 +150,38 @@ export default function Analytics() {
 
   // ── YouTube fetch ────────────────────────────────────────────────────
   const fetchYouTubeStats = useCallback(async () => {
-    const ytUrls = published.filter(r => r.post_link?.includes("youtube") || r.post_link?.includes("youtu.be")).map(r => r.post_link);
-    if (!ytUrls.length) return;
+    // Collect YouTube URLs from completed_videos.post_link AND video_projects.finished_video_link
+    const fromPublished = published
+      .map(r => r.post_link ?? "")
+      .filter(u => u.includes("youtube") || u.includes("youtu.be"));
+    const allYtUrls = [...new Set([...fromPublished, ...ytProjectLinks])].filter(Boolean);
+    if (!allYtUrls.length) {
+      setYtEnabled(false);
+      return;
+    }
     setYtLoading(true);
     try {
       const res = await fetch("/api/youtube", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ urls: ytUrls }),
+        body: JSON.stringify({ urls: allYtUrls }),
       });
       const data = await res.json();
       if (data.error) {
         setYtEnabled(false);
       } else {
         setYtStats(data.stats ?? {});
-        setYtEnabled(true);
+        setYtEnabled(Object.keys(data.stats ?? {}).length > 0);
       }
     } catch {
       setYtEnabled(false);
     }
     setYtLoading(false);
-  }, [published]);
+  }, [published, ytProjectLinks]);
 
   useEffect(() => {
-    if (published.length > 0) fetchYouTubeStats();
-  }, [published, fetchYouTubeStats]);
+    if (published.length > 0 || ytProjectLinks.length > 0) fetchYouTubeStats();
+  }, [published, ytProjectLinks, fetchYouTubeStats]);
 
   // ── Computed ─────────────────────────────────────────────────────────
   const platformCounts: Record<string, number> = {};
@@ -459,7 +473,7 @@ export default function Analytics() {
             <Youtube size={32} className="text-red-400 mx-auto mb-3"/>
             <div className="font-semibold text-bo-text mb-2">YouTube API Not Connected</div>
             <p className="text-bo-subtle text-sm mb-4 max-w-md mx-auto">
-              To see real-time view counts and engagement metrics, add your YouTube Data API v3 key to Vercel.
+              To see real-time view counts and engagement metrics, add your YouTube Data API v3 key to Netlify.
             </p>
             <div className="bg-bo-surface rounded-lg p-4 text-left max-w-lg mx-auto">
               <div className="text-[11px] text-bo-subtle uppercase tracking-wider mb-2">Setup Steps</div>
@@ -467,7 +481,7 @@ export default function Analytics() {
                 <li>Go to <span className="text-bo-teal">console.cloud.google.com</span></li>
                 <li>Enable <span className="font-medium">YouTube Data API v3</span></li>
                 <li>Create an API key (restrict to YouTube Data API)</li>
-                <li>In Vercel → Project Settings → Environment Variables</li>
+                <li>In Netlify → Site configuration → Environment variables</li>
                 <li>Add: <code className="bg-bo-muted/50 px-1.5 py-0.5 rounded text-bo-orange text-xs">YOUTUBE_API_KEY = your_key_here</code></li>
                 <li>Redeploy → view counts appear automatically here</li>
               </ol>

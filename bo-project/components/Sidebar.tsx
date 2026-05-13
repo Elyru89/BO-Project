@@ -27,12 +27,9 @@ export default function Sidebar() {
   const nav = (
     <nav className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-bo-border">
-        <img src="/bo-icon-white.svg" alt="BO" className="w-8 h-8 flex-shrink-0" />
-        <div>
-          <img src="/bo-logo-white.svg" alt="Boat Outfitters" className="h-5 w-auto" style={{filter:"brightness(1)"}}/>
-          <div className="text-bo-subtle text-[10px] mt-0.5 uppercase tracking-widest">Command Center</div>
-        </div>
+      <div className="flex flex-col px-4 py-5 border-b border-bo-border">
+        <img src="/bo-logo-white.svg" alt="Boat Outfitters" className="h-6 w-auto mb-1" />
+        <div className="text-bo-subtle text-[10px] uppercase tracking-widest">Command Center</div>
       </div>
 
       {/* Links */}
