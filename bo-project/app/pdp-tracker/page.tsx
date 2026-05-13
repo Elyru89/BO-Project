@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { Table2, Search, Download, Plus } from "lucide-react";
+import { Table2, Search, Download, Plus, Globe } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import ProgressBar from "@/components/ProgressBar";
 import Modal from "@/components/Modal";
@@ -12,20 +12,37 @@ type PDP = {
   pdp_image_suite: boolean; lifestyle_images: boolean; hover_image: boolean;
   images_fully_updated: boolean; pdp_teaser: boolean; pdp_bullets: boolean;
   gmc_title: boolean; gmc_description: boolean; search_terms: boolean;
-  all_text_completed: boolean; fully_completed: boolean;
+  all_text_completed: boolean; fully_completed: boolean; website_live: boolean;
   image_due_date: string; text_due_date: string; notes: string;
 };
 
 const BOOL_FIELDS: (keyof PDP)[] = [
   "pdp_image_suite","lifestyle_images","hover_image","images_fully_updated",
   "pdp_teaser","pdp_bullets","gmc_title","gmc_description","search_terms",
-  "all_text_completed","fully_completed"
+  "all_text_completed","fully_completed","website_live"
 ];
 const BLANK = { part_number:"", name:"", pdp_image_suite:false, lifestyle_images:false,
   hover_image:false, images_fully_updated:false, pdp_teaser:false, pdp_bullets:false,
   gmc_title:false, gmc_description:false, search_terms:false,
-  all_text_completed:false, fully_completed:false,
+  all_text_completed:false, fully_completed:false, website_live:false,
   image_due_date:"", text_due_date:"", notes:"" };
+
+function exportCSV(rows: PDP[]) {
+  const headers = ["Part Number","Name","Img Suite","Lifestyle","Hover","Images Done","Teaser","Bullets","GMC Title","GMC Desc","Search Terms","Text Done","Fully Done","CP Live","Notes"];
+  const lines = rows.map(r => [
+    r.part_number, r.name,
+    r.pdp_image_suite?"Yes":"No", r.lifestyle_images?"Yes":"No", r.hover_image?"Yes":"No",
+    r.images_fully_updated?"Yes":"No", r.pdp_teaser?"Yes":"No", r.pdp_bullets?"Yes":"No",
+    r.gmc_title?"Yes":"No", r.gmc_description?"Yes":"No", r.search_terms?"Yes":"No",
+    r.all_text_completed?"Yes":"No", r.fully_completed?"Yes":"No", r.website_live?"Yes":"No",
+    r.notes ?? ""
+  ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","));
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type:"text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download="pdp_tracker.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
 
 const PAGE_SIZE = 50;
 
@@ -101,26 +118,31 @@ export default function PDPTracker() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const visible = filtered.slice(page*PAGE_SIZE, (page+1)*PAGE_SIZE);
   const completed = data.filter(r=>r.fully_completed).length;
+  const cpLive = data.filter(r=>r.website_live).length;
   const imgDone = data.filter(r=>r.images_fully_updated).length;
   const txtDone = data.filter(r=>r.all_text_completed).length;
 
   const COL_HEADERS = [
-    {key:"pdp_image_suite",    label:"Img Suite"},
-    {key:"lifestyle_images",   label:"Lifestyle"},
-    {key:"hover_image",        label:"Hover"},
-    {key:"images_fully_updated",label:"Imgs ✓"},
-    {key:"pdp_teaser",         label:"Teaser"},
-    {key:"pdp_bullets",        label:"Bullets"},
-    {key:"gmc_title",          label:"GMC Title"},
-    {key:"gmc_description",    label:"GMC Desc"},
-    {key:"search_terms",       label:"Search"},
-    {key:"all_text_completed", label:"Text ✓"},
-    {key:"fully_completed",    label:"DONE"},
+    {key:"pdp_image_suite",    label:"Img Suite",  special:""},
+    {key:"lifestyle_images",   label:"Lifestyle",  special:""},
+    {key:"hover_image",        label:"Hover",      special:""},
+    {key:"images_fully_updated",label:"Imgs ✓",   special:"teal"},
+    {key:"pdp_teaser",         label:"Teaser",     special:""},
+    {key:"pdp_bullets",        label:"Bullets",    special:""},
+    {key:"gmc_title",          label:"GMC Title",  special:""},
+    {key:"gmc_description",    label:"GMC Desc",   special:""},
+    {key:"search_terms",       label:"Search",     special:""},
+    {key:"all_text_completed", label:"Text ✓",    special:"teal"},
+    {key:"fully_completed",    label:"DONE",       special:"green"},
+    {key:"website_live",       label:"CP Live",    special:"blue"},
   ];
 
   return (
     <div className="space-y-6">
       <PageHeader title="PDP Tracker" subtitle={`${data.length} SKUs · Click any checkbox to toggle`} icon={Table2}>
+        <button onClick={()=>exportCSV(data)} className="bo-btn-ghost flex items-center gap-1.5 text-sm">
+          <Download size={14}/> Export CSV
+        </button>
         <button onClick={()=>setModal(true)} className="bo-btn-primary flex items-center gap-1.5 text-sm">
           <Plus size={14}/> Add SKU
         </button>
@@ -129,7 +151,7 @@ export default function PDPTracker() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           {label:"Fully Done",    val:completed, total:data.length, color:"green" as const},
-          {label:"Images Done",   val:imgDone,   total:data.length, color:"teal" as const},
+          {label:"CP Pages Live", val:cpLive,    total:data.length, color:"teal" as const},
           {label:"Text Done",     val:txtDone,   total:data.length, color:"orange" as const},
           {label:"Remaining",     val:data.length-completed, total:data.length, color:"yellow" as const},
         ].map(s=>(
@@ -168,7 +190,7 @@ export default function PDPTracker() {
                   <th className="text-left text-[11px] font-semibold text-bo-subtle uppercase tracking-wider px-3 py-3">Name</th>
                   {COL_HEADERS.map(h=>(
                     <th key={h.key} className={`text-center text-[11px] font-semibold uppercase tracking-wider px-2 py-3 whitespace-nowrap
-                      ${h.key==="fully_completed"?"text-green-400":"text-bo-subtle"}`}>{h.label}</th>
+                      ${h.special==="green"?"text-green-400":h.special==="teal"?"text-bo-teal":h.special==="blue"?"text-blue-400":"text-bo-subtle"}`}>{h.label}</th>
                   ))}
                   <th className="text-left text-[11px] font-semibold text-bo-subtle uppercase tracking-wider px-3 py-3">Notes</th>
                 </tr>

@@ -79,6 +79,7 @@ create table if not exists pdp_tracker (
   search_terms boolean default false,
   all_text_completed boolean default false,
   fully_completed boolean default false,
+  website_live boolean default false,
   image_due_date date,
   text_due_date date,
   notes text,

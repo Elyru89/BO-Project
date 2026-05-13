@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { BarChart2, TrendingUp, Film, Palette, CheckCircle2, Image, Eye, ThumbsUp, Youtube, ExternalLink, RefreshCw, Target, Users } from "lucide-react";
+import { BarChart2, TrendingUp, Film, Palette, CheckCircle2, Image, Eye, ThumbsUp, Youtube, ExternalLink, RefreshCw, Target, Users, Download, Copy, Check, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import ProgressBar from "@/components/ProgressBar";
 import { supabase } from "@/lib/supabase";
@@ -63,6 +63,7 @@ export default function Analytics() {
   // ── Data state ──────────────────────────────────────────────────────
   const [pdpTotal, setPdpTotal] = useState(0);
   const [pdpDone, setPdpDone] = useState(0);
+  const [pdpCpLive, setPdpCpLive] = useState(0);
   const [videosTotal, setVideosTotal] = useState(0);
   const [videosDone, setVideosDone] = useState(0);
   const [darwinTotal, setDarwinTotal] = useState(0);
@@ -84,6 +85,8 @@ export default function Analytics() {
   const [ytEnabled, setYtEnabled] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [kpiModal, setKpiModal] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -112,6 +115,10 @@ export default function Analytics() {
       supabase.from("darwin_projects").select("updated_at,progress"),
       supabase.from("video_projects").select("updated_at,progress,finished_video_link"),
     ]);
+
+    // Fetch CP Live count separately (website_live column)
+    const { count: cpLiveCount } = await supabase.from("pdp_tracker").select("*",{count:"exact",head:true}).eq("website_live",true);
+    setPdpCpLive(cpLiveCount ?? 0);
 
     setPdpTotal(pt ?? 0); setPdpDone(pd ?? 0);
     setVideosTotal(vt ?? 0); setVideosDone(vd ?? 0);
@@ -249,6 +256,76 @@ export default function Analytics() {
     Instagram: "bg-pink-500", TikTok: "bg-cyan-400", Other: "bg-bo-muted",
   };
 
+  // ── KPI Export helpers ───────────────────────────────────────────────
+  const today = new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
+  const kpiText = `BOAT OUTFITTERS — MARKETING KPI REPORT
+Generated: ${today}
+${"─".repeat(48)}
+
+📦 PDP TRACKER (Cam)
+  Total SKUs tracked:     ${fmt(pdpTotal)}
+  Tasks fully done:       ${fmt(pdpDone)} (${pct(pdpDone, pdpTotal)}%)
+  CP Pages live:          ${fmt(pdpCpLive)}
+  Remaining:              ${fmt(pdpTotal - pdpDone)}
+  Monthly goal:           ${PDP_MONTHLY_GOAL} SKUs
+  Yearly goal:            ${fmt(PDP_YEARLY_GOAL)} SKUs
+
+🎨 DESIGN PROJECTS (Darwin)
+  Total tasks:            ${darwinTotal}
+  Completed:              ${darwinDone} (${pct(darwinDone, darwinTotal)}%)
+  Remaining:              ${darwinTotal - darwinDone}
+
+🎬 VIDEO PIPELINE (Chris)
+  Total projects:         ${videosTotal}
+  Completed:              ${videosDone} (${pct(videosDone, videosTotal)}%)
+  Published videos:       ${uniquePublished.length}
+  Paid campaigns:         ${channelCounts.paid_ads}
+  Organic posts:          ${channelCounts.organic}
+
+🖼️ BRAND BANNERS
+  Total:                  ${bannersTotal}
+  Completed:              ${bannersDone} (${pct(bannersDone, bannersTotal)}%)
+
+👥 INFLUENCER HUB
+  Total tracked:          ${influencers}
+
+📊 PLATFORM DISTRIBUTION
+${Object.entries(platformCounts).sort((a,b)=>b[1]-a[1]).map(([p,c])=>`  ${p.padEnd(14)} ${c} posts (${pct(c,platformTotal)}%)`).join("\n")}
+
+${ytEnabled ? `▶️ YOUTUBE PERFORMANCE
+  Total videos tracked:   ${ytVideos.length}
+  Total views:            ${fmt(totalViews)}
+  Total likes:            ${fmt(totalLikes)}
+${ytVideos.slice(0,5).map((v,i)=>`  ${i+1}. ${(v.description||v.stat.title).slice(0,40)} — ${fmtViews(v.stat.viewCount)} views`).join("\n")}` : ""}
+${"─".repeat(48)}
+BO Command Center · bopmtool.netlify.app`;
+
+  function copyKPI() {
+    navigator.clipboard.writeText(kpiText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function downloadKPI() {
+    const blob = new Blob([kpiText], { type:"text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=`BO_KPI_${today.replace(/[, ]/g,"_")}.txt`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadTableCSV(table: string, filename: string) {
+    const { data: rows } = await supabase.from(table).select("*");
+    if (!rows?.length) return;
+    const headers = Object.keys(rows[0]).filter(k => k !== "id");
+    const lines = rows.map(r => headers.map(h => `"${String(r[h] ?? "").replace(/"/g,'""')}"`).join(","));
+    const csv = [headers.join(","), ...lines].join("\n");
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (loading) return <div className="text-bo-subtle text-center py-20">Loading analytics…</div>;
 
   return (
@@ -261,8 +338,16 @@ export default function Analytics() {
             <BarChart2 size={18} className="text-bo-orange"/>
             <span className="text-bo-orange text-sm font-semibold uppercase tracking-widest">Analytics & Metrics</span>
           </div>
-          <h1 className="text-3xl font-black text-white mb-2">2026 Performance Hub</h1>
-          <p className="text-bo-subtle text-sm max-w-lg">Department progress, video analytics, and goal tracking — all in one place.</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-black text-white mb-2">2026 Performance Hub</h1>
+              <p className="text-bo-subtle text-sm max-w-lg">Department progress, video analytics, and goal tracking — all in one place.</p>
+            </div>
+            <button onClick={()=>setKpiModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-bo-orange/20 border border-bo-orange/40 text-bo-orange text-sm font-semibold hover:bg-bo-orange/30 transition-colors flex-shrink-0">
+              <Download size={14}/> Export KPI
+            </button>
+          </div>
           <div className="flex gap-8 mt-6">
             {[
               { num: `${pct(pdpDone, pdpTotal)}%`, label: "PDP Complete" },
@@ -295,10 +380,14 @@ export default function Analytics() {
               </div>
             </div>
             <ProgressBar value={pct(pdpDone, pdpTotal)} color="orange"/>
-            <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="grid grid-cols-4 gap-3 mt-4">
               <div className="bg-bo-surface rounded-lg p-3 text-center">
                 <div className="text-bo-orange font-bold text-lg">{fmt(pdpDone)}</div>
-                <div className="text-bo-subtle text-[10px] uppercase tracking-wider">Done</div>
+                <div className="text-bo-subtle text-[10px] uppercase tracking-wider">Tasks Done</div>
+              </div>
+              <div className="bg-bo-surface rounded-lg p-3 text-center border border-blue-500/20">
+                <div className="text-blue-400 font-bold text-lg">{fmt(pdpCpLive)}</div>
+                <div className="text-bo-subtle text-[10px] uppercase tracking-wider">CP Live</div>
               </div>
               <div className="bg-bo-surface rounded-lg p-3 text-center">
                 <div className="text-bo-text font-bold text-lg">{PDP_MONTHLY_GOAL}</div>
@@ -311,7 +400,7 @@ export default function Analytics() {
             </div>
             <div className="mt-3 flex items-center gap-2">
               <Target size={12} className="text-bo-subtle"/>
-              <span className="text-bo-subtle text-xs">Yearly target: {fmt(PDP_YEARLY_GOAL)} SKUs · Monthly: {PDP_MONTHLY_GOAL}</span>
+              <span className="text-bo-subtle text-xs">Yearly target: {fmt(PDP_YEARLY_GOAL)} SKUs · Monthly: {PDP_MONTHLY_GOAL} · CP Live = pages published on website</span>
             </div>
           </div>
 
@@ -707,6 +796,57 @@ export default function Analytics() {
           </div>
         </div>
       </section>
+
+      {/* ── KPI Export Modal ── */}
+      {kpiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={()=>setKpiModal(false)}/>
+          <div className="relative bo-card w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-bo-border">
+              <div>
+                <h2 className="font-bold text-bo-text">KPI Export</h2>
+                <p className="text-bo-subtle text-xs mt-0.5">Copy or download — paste into any KPI sheet, Slack, or email</p>
+              </div>
+              <button onClick={()=>setKpiModal(false)} className="text-bo-subtle hover:text-bo-text"><X size={18}/></button>
+            </div>
+
+            {/* Action buttons */}
+            <div className="px-5 py-3 border-b border-bo-border flex flex-wrap gap-2">
+              <button onClick={copyKPI}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bo-orange text-white text-xs font-semibold hover:bg-bo-orange/80 transition-colors">
+                {copied ? <><Check size={12}/> Copied!</> : <><Copy size={12}/> Copy Report</>}
+              </button>
+              <button onClick={downloadKPI}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-bo-surface border border-bo-border text-bo-text text-xs font-semibold hover:border-bo-orange/40 transition-colors">
+                <Download size={12}/> Download .txt
+              </button>
+              <div className="h-4 w-px bg-bo-border self-center mx-1"/>
+              <span className="text-bo-subtle text-xs self-center">CSV by module:</span>
+              {[
+                { label:"PDP Tracker", table:"pdp_tracker", file:"pdp_tracker.csv" },
+                { label:"Video Pipeline", table:"video_projects", file:"video_projects.csv" },
+                { label:"Published Videos", table:"completed_videos", file:"completed_videos.csv" },
+                { label:"Design Projects", table:"darwin_projects", file:"design_projects.csv" },
+                { label:"Brand Banners", table:"brand_banners", file:"brand_banners.csv" },
+                { label:"Influencers", table:"influencer_posts", file:"influencers.csv" },
+                { label:"Video Ads", table:"video_ads", file:"video_ads.csv" },
+              ].map(({ label, table, file }) => (
+                <button key={table} onClick={()=>downloadTableCSV(table, file)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-bo-surface border border-bo-border text-bo-subtle text-xs hover:text-bo-orange hover:border-bo-orange/40 transition-colors">
+                  <Download size={10}/> {label}
+                </button>
+              ))}
+            </div>
+
+            {/* KPI preview */}
+            <div className="flex-1 overflow-y-auto p-5">
+              <pre className="text-xs text-bo-subtle font-mono whitespace-pre-wrap leading-relaxed bg-bo-surface rounded-lg p-4 select-all">
+                {kpiText}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
