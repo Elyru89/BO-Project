@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Table2, Film, Palette, Image,
-  Users, Megaphone, BarChart2, ChevronRight, Menu, X
+  Users, Megaphone, BarChart2, ChevronRight, Menu, X, Zap
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/brand-banners",     label: "Brand Banners",  icon: Image,           tag: null },
   { href: "/influencer-hub",    label: "Influencer Hub", icon: Users,           tag: null },
   { href: "/video-ads",         label: "Video Ads",      icon: Megaphone,       tag: null },
+  { href: "/ad-intelligence",   label: "Ad Intelligence",icon: Zap,             tag: "New" },
 ];
 
 export default function Sidebar() {
